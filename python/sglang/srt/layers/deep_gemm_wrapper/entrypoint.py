@@ -46,21 +46,22 @@ def grouped_gemm_nt_f8f8bf16_masked(
             overlap_args.num_sms if overlap_args is not None else None
         ):
 
-            return deep_gemm.fp8_m_grouped_gemm_nt_masked(
+            if overlap_args is None:
+                return deep_gemm.fp8_m_grouped_gemm_nt_masked(
                 lhs,
                 rhs,
                 out,
                 masked_m,
                 expected_m,
-                **(
-                    dict(
-                        enable_overlap=True,
-                        max_block_n=max_block_n,
-                        signal=overlap_args.signal,
-                    )
-                    if overlap_args is not None
-                    else {}
-                ),
+                                ),  
+
+            return deep_gemm.m_grouped_fp8_gemm_tn_transpose_n_group_sbo_masked(
+                rhs,
+                lhs,
+                out,
+                masked_m,
+                expected_m,
+                send_signal=overlap_args.signal.data_ptr()
             )
 
 
