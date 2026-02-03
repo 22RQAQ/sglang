@@ -329,15 +329,22 @@ class DeepGemmRunnerCore(MoeRunnerCore):
                 "overlap_args": down_gemm_overlap_args,
                 "max_block_n": max_block_n,
             }
-
-        deep_gemm_return_value = deep_gemm_wrapper.grouped_gemm_nt_f8f8bf16_masked(
+        if not gemm_overlap_args_dict:
+           deep_gemm_return_value  = deep_gemm_wrapper.m_grouped_fp8_gemm_tn_transpose_n_group_masked(
             (down_input, down_input_scale),
             (w2_weight, w2_scale),
             down_output,
             masked_m,
-            expected_m,
-            **gemm_overlap_args_dict,
-        )
+            expected_m)
+        else:
+            deep_gemm_return_value = deep_gemm_wrapper.m_grouped_fp8_gemm_tn_transpose_n_group_sbo_masked(
+                (down_input, down_input_scale),
+                (w2_weight, w2_scale),
+                down_output,
+                masked_m,
+                expected_m,
+                **gemm_overlap_args_dict,
+            )
         meta_overlap_args = running_state.get("meta_overlap_args", None)
         if meta_overlap_args is not None:
             block_m, threshold = deep_gemm_return_value

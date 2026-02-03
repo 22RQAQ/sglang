@@ -53,8 +53,8 @@ def grouped_gemm_nt_f8f8bf16_masked(
                 out,
                 masked_m,
                 expected_m,
-                                ),  
-
+                ),  
+            # 目前不会运行到下面，即fp8_m_grouped_gemm_nt_masked 不会被sbo用到
             return deep_gemm.m_grouped_fp8_gemm_tn_transpose_n_group_sbo_masked(
                 rhs,
                 lhs,
@@ -62,6 +62,67 @@ def grouped_gemm_nt_f8f8bf16_masked(
                 masked_m,
                 expected_m,
                 send_signal=overlap_args.signal.data_ptr()
+            )
+
+# transpose + sbo
+def m_grouped_fp8_gemm_tn_transpose_n_group_sbo_masked(
+    lhs: Tuple[torch.Tensor, torch.Tensor],
+    rhs: Tuple[torch.Tensor, torch.Tensor],
+    out: torch.Tensor,
+    masked_m: torch.Tensor,
+    expected_m: int,
+    overlap_args: Optional[Any] = None,
+    max_block_n: int = 256,
+):
+    num_groups, _, k = lhs[0].shape
+    _, n, _ = rhs[0].shape
+    # kernel_type待修改
+    kernel_type = compile_utils.DeepGemmKernelType.GROUPED_GEMM_NT_F8F8BF16_MASKED
+
+    _sanity_check_input(lhs)
+    _sanity_check_input(rhs)
+
+    with compile_utils.deep_gemm_execution_hook(
+        expected_m, n, k, num_groups, kernel_type
+    ):
+        with configure_deep_gemm_num_sms(
+            overlap_args.num_sms if overlap_args is not None else None
+        ):
+            
+            return  deep_gemm.m_grouped_fp8_gemm_tn_transpose_n_group_sbo_masked(
+                rhs,
+                lhs,
+                out,
+                masked_m,
+                expected_m,
+                send_signal=overlap_args.signal.data_ptr()
+            )
+
+# transpose
+def m_grouped_fp8_gemm_tn_transpose_n_group_masked(
+    lhs: Tuple[torch.Tensor, torch.Tensor],
+    rhs: Tuple[torch.Tensor, torch.Tensor],
+    out: torch.Tensor,
+    masked_m: torch.Tensor,
+    expected_m: int,
+):
+    num_groups, _, k = lhs[0].shape
+    _, n, _ = rhs[0].shape
+    # kernel_type待修改
+    kernel_type = compile_utils.DeepGemmKernelType.GROUPED_GEMM_NT_F8F8BF16_MASKED
+
+    _sanity_check_input(lhs)
+    _sanity_check_input(rhs)
+
+    with compile_utils.deep_gemm_execution_hook(
+        expected_m, n, k, num_groups, kernel_type
+    ):
+        return  deep_gemm.m_grouped_fp8_gemm_tn_transpose_n_group_masked(
+                rhs,
+                lhs,
+                out,
+                masked_m,
+                expected_m,
             )
 
 
