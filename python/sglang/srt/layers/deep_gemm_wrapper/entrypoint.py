@@ -45,7 +45,7 @@ def grouped_gemm_nt_f8f8bf16_masked(
         with configure_deep_gemm_num_sms(
             overlap_args.num_sms if overlap_args is not None else None
         ):
-
+            # our deep_gemm split fp8_m_grouped_gemm_nt_masked and m_grouped_fp8_gemm_nt_sbo_masked
             if overlap_args is None:
                 return deep_gemm.fp8_m_grouped_gemm_nt_masked(
                 lhs,
@@ -54,10 +54,10 @@ def grouped_gemm_nt_f8f8bf16_masked(
                 masked_m,
                 expected_m,
                 ),  
-            # 目前不会运行到下面，即fp8_m_grouped_gemm_nt_masked 不会被sbo用到
-            return deep_gemm.m_grouped_fp8_gemm_tn_transpose_n_group_sbo_masked(
-                rhs,
+            
+            return deep_gemm.m_grouped_fp8_gemm_nt_sbo_masked(
                 lhs,
+                rhs,
                 out,
                 masked_m,
                 expected_m,
