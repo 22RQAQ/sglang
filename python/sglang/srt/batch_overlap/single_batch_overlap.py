@@ -22,7 +22,7 @@ import torch
 from sglang.srt.environ import envs
 from sglang.srt.layers.moe import get_moe_runner_backend
 from sglang.srt.layers.moe.utils import is_sbo_enabled
-from sglang.srt.utils import is_blackwell
+from sglang.srt.utils import is_blackwell, get_bool_env_var
 
 
 class SboFlags:
@@ -116,7 +116,11 @@ def compute_overlap_args(dispatch_output, alt_stream):
                 num_local_experts, dtype=torch.uint32, device=hidden_states.device
             )
         else:
-            MIN_BLOCK_M = 16
+            enable_transpose_gemm = get_bool_env_var("SGLANG_DEEPGEMM_MOE_TRANSPOSE", "false")
+            if enable_transpose_gemm:
+                MIN_BLOCK_M = 16
+            else:
+                MIN_BLOCK_M = 64
             combine_signal_size = num_local_experts * (
                 (num_tokens_static + MIN_BLOCK_M - 1) // MIN_BLOCK_M
             )
