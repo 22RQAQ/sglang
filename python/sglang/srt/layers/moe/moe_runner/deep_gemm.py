@@ -364,7 +364,7 @@ class DeepGemmRunnerCore(MoeRunnerCore):
                     **gemm_overlap_args_dict,
                 )
         else:
-            deep_gemm_wrapper.grouped_gemm_nt_f8f8bf16_masked(
+            deep_gemm_return_value = deep_gemm_wrapper.grouped_gemm_nt_f8f8bf16_masked(
                 (down_input, down_input_scale),
                 (w2_weight, w2_scale),
                 down_output,
