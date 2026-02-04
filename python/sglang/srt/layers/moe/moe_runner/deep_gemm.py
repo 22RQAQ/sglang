@@ -252,13 +252,24 @@ class DeepGemmRunnerCore(MoeRunnerCore):
         gateup_output = torch.empty(
             (num_groups, m, n), device=hidden_states_device, dtype=torch.bfloat16
         )
-        deep_gemm_wrapper.grouped_gemm_nt_f8f8bf16_masked(
+
+        # use transpose gemm
+        deep_gemm_wrapper.m_grouped_fp8_gemm_tn_transpose_n_group_masked(
             (hidden_states, hidden_states_scale),
             (w13_weight, w13_scale),
             gateup_output,
             masked_m,
             expected_m,
         )
+
+
+        # deep_gemm_wrapper.grouped_gemm_nt_f8f8bf16_masked(
+        #     (hidden_states, hidden_states_scale),
+        #     (w13_weight, w13_scale),
+        #     gateup_output,
+        #     masked_m,
+        #     expected_m,
+        # )
         dispose_tensor(hidden_states)
         dispose_tensor(hidden_states_scale)
 
@@ -329,13 +340,15 @@ class DeepGemmRunnerCore(MoeRunnerCore):
                 "overlap_args": down_gemm_overlap_args,
                 "max_block_n": max_block_n,
             }
+        
+        # use transpose gemm
         if not gemm_overlap_args_dict:
-           deep_gemm_return_value  = deep_gemm_wrapper.m_grouped_fp8_gemm_tn_transpose_n_group_masked(
-            (down_input, down_input_scale),
-            (w2_weight, w2_scale),
-            down_output,
-            masked_m,
-            expected_m)
+            deep_gemm_return_value  = deep_gemm_wrapper.m_grouped_fp8_gemm_tn_transpose_n_group_masked(
+                (down_input, down_input_scale),
+                (w2_weight, w2_scale),
+                down_output,
+                masked_m,
+                expected_m)
         else:
             deep_gemm_return_value = deep_gemm_wrapper.m_grouped_fp8_gemm_tn_transpose_n_group_sbo_masked(
                 (down_input, down_input_scale),
