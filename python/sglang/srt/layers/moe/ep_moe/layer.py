@@ -183,12 +183,16 @@ class DeepEPMoE(FusedMoE):
     def run_moe_core(
         self,
         dispatch_output: DispatchOutput,
+        combine_buffer: Optional[torch.Tensor] = None,
     ):
 
         if self.deprecate_flag:
             return super().run_moe_core(
                 dispatch_output,
+                combine_buffer=combine_buffer,
             )
+
+        assert combine_buffer is None
 
         from sglang.srt.layers.moe.token_dispatcher import DispatchOutputChecker
 

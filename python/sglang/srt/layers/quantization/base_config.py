@@ -106,6 +106,7 @@ class FusedMoEMethodBase(QuantizeMethodBase):
         self,
         layer: torch.nn.Module,
         dispatch_output: DispatchOutput,
+        combine_buffer: Optional[torch.Tensor] = None,
     ) -> CombineInput:
         raise NotImplementedError
 

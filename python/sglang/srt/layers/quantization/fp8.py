@@ -1115,6 +1115,7 @@ class Fp8MoEMethod(FusedMoEMethodBase):
         self,
         layer: torch.nn.Module,
         dispatch_output: DispatchOutput,
+        combine_buffer: Optional[torch.Tensor] = None,
     ) -> CombineInput:
 
         from sglang.srt.layers.moe.token_dispatcher import StandardCombineInput
@@ -1232,6 +1233,7 @@ class Fp8MoEMethod(FusedMoEMethodBase):
                 block_shape=block_shape,
             )
         elif self.runner.runner_backend.is_triton():
+            assert combine_buffer is None
             quant_info = TritonMoeQuantInfo(
                 w13_weight=layer.w13_weight,
                 w2_weight=layer.w2_weight,
@@ -1255,7 +1257,7 @@ class Fp8MoEMethod(FusedMoEMethodBase):
                 "Unsupported runner backend: %s" % self.runner.runner_backend
             )
 
-        return self.runner.run(dispatch_output, quant_info)
+        return self.runner.run(dispatch_output, quant_info, combine_buffer)
 
     def _ensure_cutlass_buffers_initialized(self, layer: Module) -> None:
         if getattr(self, "_cutlass_buffers_ready", False):

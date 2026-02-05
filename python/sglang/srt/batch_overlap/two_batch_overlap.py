@@ -994,6 +994,12 @@ class MaybeTboDeepEPDispatcher(BaseDispatcher):
     def dispatch(self, **kwargs) -> DispatchOutput:
         return self._execute("dispatch", **kwargs)
 
+    def supports_combine_zero_copy(self, **kwargs) -> bool:
+        return self._execute("supports_combine_zero_copy", **kwargs)
+
+    def get_combine_zero_copy_buffer(self, **kwargs) -> torch.Tensor:
+        return self._execute("get_combine_zero_copy_buffer", **kwargs)
+
     def dispatch_a(self, **kwargs):
         return self._execute("dispatch_a", **kwargs)
 

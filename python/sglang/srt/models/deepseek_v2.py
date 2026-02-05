@@ -759,6 +759,11 @@ class DeepseekV2MoE(nn.Module):
         )
         self._fuse_shared_experts_inside_sbo = SboFlags.fuse_shared_experts_inside_sbo()
 
+        if layer_id == 0:
+            logger.warning(
+                f"{self._fuse_shared_experts_inside_sbo=} {SboFlags.enable_combine_down_gemm_two_stream_overlap()=} {SboFlags.enable_combine_shared_two_stream_overlap()=} {SboFlags.enable_dispatch_shared_one_stream_overlap()=}"
+            )
+
     def get_moe_weights(self):
         return [
             x.data

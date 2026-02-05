@@ -331,6 +331,12 @@ class _DeepEPDispatcherImplBase:
         self.overlap_args: Optional[CombineOverlapArgs] = None
         self.meta_overlap_args: Optional[dict] = None
 
+    def supports_combine_zero_copy(self) -> bool:
+        return False
+
+    def get_combine_zero_copy_buffer(self, *args, **kwargs) -> torch.Tensor:
+        assert False
+
     def dispatch_a(
         self,
         hidden_states: torch.Tensor,
@@ -346,6 +352,7 @@ class _DeepEPDispatcherImplBase:
         hidden_states: torch.Tensor,
         topk_ids: torch.Tensor,
         topk_weights: torch.Tensor,
+        zero_copy: bool = False,
     ):
         raise NotImplementedError
 
@@ -489,7 +496,9 @@ class _DeepEPDispatcherImplNormal(_DeepEPDispatcherImplBase):
         hidden_states: torch.Tensor,
         topk_ids: torch.Tensor,
         topk_weights: torch.Tensor,
+        zero_copy: bool = False,
     ):
+        assert not zero_copy
 
         if deep_gemm_wrapper.ENABLE_JIT_DEEPGEMM or _use_aiter or _is_npu:
             output = hidden_states
@@ -542,6 +551,15 @@ class _DeepEPDispatcherImplLowLatency(_DeepEPDispatcherImplBase):
         self.return_recv_hook = return_recv_hook
         self.device_module = torch.get_device_module()
         self.quant_config = {}
+        self.allow_zero_copy = get_bool_env_var(
+            "SGLANG_DEEPEP_ALLOW_LL_COMBINE_ZERO_COPY", "false"
+        )
+
+    def supports_combine_zero_copy(self) -> bool:
+        return self.allow_zero_copy
+
+    def get_combine_zero_copy_buffer(self) -> torch.Tensor:
+        return self._get_buffer().get_next_low_latency_combine_buffer(self.handle)
 
     def dispatch_a(
         self,
@@ -641,11 +659,13 @@ class _DeepEPDispatcherImplLowLatency(_DeepEPDispatcherImplBase):
         hidden_states: torch.Tensor,
         topk_ids: torch.Tensor,
         topk_weights: torch.Tensor,
+        zero_copy: bool = False,
     ):
         hidden_states, event, hook = self._combine_core(
             hidden_states,
             topk_ids,
             topk_weights,
+            zero_copy,
         )
         return hidden_states, event, hook
 
@@ -666,6 +686,7 @@ class _DeepEPDispatcherImplLowLatency(_DeepEPDispatcherImplBase):
         hidden_states: torch.Tensor,
         topk_ids: torch.Tensor,
         topk_weights: torch.Tensor,
+        zero_copy: bool,
     ):
         buffer = self._get_buffer()
         overlap_args = self.overlap_args
@@ -702,6 +723,7 @@ class _DeepEPDispatcherImplLowLatency(_DeepEPDispatcherImplBase):
                 handle=self.handle,
                 async_finish=not self.return_recv_hook,
                 return_recv_hook=self.return_recv_hook,
+                zero_copy=zero_copy,
                 **overlap_args_dict,
             )
 
@@ -782,6 +804,12 @@ class DeepEPDispatcher(BaseDispatcher):
         ret = self.dispatch_b()
         return ret
 
+    def supports_combine_zero_copy(self) -> bool:
+        return self._get_impl().supports_combine_zero_copy()
+
+    def get_combine_zero_copy_buffer(self, *args, **kwargs):
+        return self._get_impl().get_combine_zero_copy_buffer(*args, **kwargs)
+
     def dispatch_a(
         self,
         hidden_states: torch.Tensor,
@@ -803,14 +831,16 @@ class DeepEPDispatcher(BaseDispatcher):
     def combine(
         self,
         combine_input: CombineInput,
+        zero_copy: bool = False,
     ) -> torch.Tensor:
-        self.combine_a(combine_input)
+        self.combine_a(combine_input, zero_copy)
         ret = self.combine_b()
         return ret
 
     def combine_a(
         self,
         combine_input: CombineInput,
+        zero_copy: bool,
     ):
         hidden_states, topk_ids, topk_weights = combine_input
         self._update_stage(_Stage.AFTER_DISPATCH_B, _Stage.AFTER_COMBINE_A)
@@ -818,6 +848,7 @@ class DeepEPDispatcher(BaseDispatcher):
             hidden_states=hidden_states,
             topk_ids=topk_ids,
             topk_weights=topk_weights,
+            zero_copy=zero_copy,
         )
         self._combine_intermediate_state = inner_state
 
