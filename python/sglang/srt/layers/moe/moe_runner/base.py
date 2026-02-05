@@ -75,9 +75,17 @@ class MoeRunnerCore(ABC):
     def __init__(self, config: MoeRunnerConfig):
         self.config = config
 
+    @classmethod
+    def supports_combine_zero_copy(self) -> bool:
+        return False
+
     @abstractmethod
     def run(
-        self, runner_input: RunnerInput, quant_info: MoeQuantInfo, running_state: dict
+        self,
+        runner_input: RunnerInput,
+        quant_info: MoeQuantInfo,
+        running_state: dict,
+        combine_buffer: Optional[torch.Tensor] = None,
     ) -> RunnerOutput:
         pass
 

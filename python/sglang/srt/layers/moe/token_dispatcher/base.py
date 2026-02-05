@@ -257,6 +257,12 @@ class BaseDispatcher(ABC):
         self._original_dispatch_func: Optional[Callable] = None
         self._original_combine_func: Optional[Callable] = None
 
+    def supports_combine_zero_copy(self) -> bool:
+        return False
+
+    def get_combine_zero_copy_buffer(self, *args, **kwargs) -> torch.Tensor:
+        assert False, "Operation not supported"
+
     @abstractmethod
     def dispatch(
         self, hidden_states: torch.Tensor, topk_output: TopKOutput
@@ -283,13 +289,19 @@ class BaseDispatcher(ABC):
             self.dispatch = self._dispatch_with_hook
 
     @abstractmethod
-    def combine(self, combine_input: CombineInput) -> torch.Tensor:
+    def combine(
+        self, combine_input: CombineInput, zero_copy: bool = False
+    ) -> torch.Tensor:
         pass
 
-    def _combine_with_hook(self, combine_input: CombineInput) -> torch.Tensor:
+    def _combine_with_hook(
+        self, combine_input: CombineInput, zero_copy: bool = False
+    ) -> torch.Tensor:
         if self._pre_combine_hooks is not None:
             combine_input = self._pre_combine_hooks(self, combine_input)
-        hidden_states = self._original_combine_func(combine_input=combine_input)
+        hidden_states = self._original_combine_func(
+            combine_input=combine_input, zero_copy=zero_copy
+        )
         if self._post_combine_hooks is not None:
             hidden_states = self._post_combine_hooks(self, hidden_states)
         return hidden_states

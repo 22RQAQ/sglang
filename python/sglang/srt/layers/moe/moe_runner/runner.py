@@ -63,7 +63,10 @@ class MoeRunner:
             self.fused_func = None
 
     def run(
-        self, dispatch_output: DispatchOutput, quant_info: MoeQuantInfo
+        self,
+        dispatch_output: DispatchOutput,
+        quant_info: MoeQuantInfo,
+        combine_buffer=None,
     ) -> CombineInput:
 
         if self.fused_func is not None:
@@ -84,7 +87,14 @@ class MoeRunner:
         runner_input = self.pre_permute_func(
             dispatch_output, quant_info, self.config, running_state
         )
-        runner_output = self.runner_core.run(runner_input, quant_info, running_state)
+        if self.runner_core.supports_combine_zero_copy():
+            runner_output = self.runner_core.run(
+                runner_input, quant_info, running_state, combine_buffer=combine_buffer
+            )
+        else:
+            runner_output = self.runner_core.run(
+                runner_input, quant_info, running_state
+            )
 
         runner_format = self.runner_core.runner_backend.value
         combine_format = dispatch_output.format.value

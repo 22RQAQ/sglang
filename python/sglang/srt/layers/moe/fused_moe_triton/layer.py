@@ -893,14 +893,22 @@ class FusedMoE(torch.nn.Module):
                 .to(device="cuda")
             )
 
+        if combine_zero_copy := self.dispatcher.supports_combine_zero_copy():
+            combine_buffer = self.dispatcher.get_combine_zero_copy_buffer()
+        else:
+            combine_buffer = None
+
         combine_input = self.run_moe_core(
             dispatch_output=dispatch_output,
+            combine_buffer=combine_buffer,
         )
 
         with use_symmetric_memory(
             get_tp_group(), disabled=not is_allocation_symmetric()
         ):
-            final_hidden_states = self.dispatcher.combine(combine_input=combine_input)
+            final_hidden_states = self.dispatcher.combine(
+                combine_input=combine_input, zero_copy=combine_zero_copy
+            )
 
             # TODO: should we add some conditions here?
             final_hidden_states = final_hidden_states[
@@ -912,11 +920,16 @@ class FusedMoE(torch.nn.Module):
 
         return final_hidden_states
 
-    def run_moe_core(self, dispatch_output: DispatchOutput) -> CombineInput:
+    def run_moe_core(
+        self,
+        dispatch_output: DispatchOutput,
+        combine_buffer: Optional[torch.Tensor] = None,
+    ) -> CombineInput:
         # TODO: consider using symmetric memory
         return self.quant_method.apply(
             layer=self,
             dispatch_output=dispatch_output,
+            combine_buffer=combine_buffer,
         )
 
     @classmethod

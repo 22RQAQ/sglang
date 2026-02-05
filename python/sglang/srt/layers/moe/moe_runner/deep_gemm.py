@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING, List, Optional
 
 import torch
 
-import os
-
 from sglang.srt.layers import deep_gemm_wrapper
 from sglang.srt.layers.moe.moe_runner.base import (
     MoeQuantInfo,
@@ -109,19 +107,25 @@ class DeepGemmRunnerCore(MoeRunnerCore):
         assert self.config.activation == "silu"
         assert self.config.is_gated
 
+    @classmethod
+    def supports_combine_zero_copy(cls) -> bool:
+        return True
+
     def run(
         self,
         runner_input: DeepGemmRunnerInput,
         quant_info: DeepGemmMoeQuantInfo,
         running_state: dict,
+        combine_buffer: Optional[torch.Tensor] = None,
     ) -> DeepGemmRunnerOutput:
         if not runner_input.use_masked_gemm:
+            assert combine_buffer is None
             hidden_states = self._run_contiguous_gemm(
                 runner_input, quant_info, running_state
             )
         else:
             hidden_states = self._run_masked_gemm(
-                runner_input, quant_info, running_state
+                runner_input, quant_info, running_state, combine_buffer=combine_buffer
             )
         return DeepGemmRunnerOutput(hidden_states=hidden_states)
 
@@ -213,6 +217,7 @@ class DeepGemmRunnerCore(MoeRunnerCore):
         runner_input: DeepGemmRunnerInput,
         quant_info: DeepGemmMoeQuantInfo,
         running_state: dict,
+        combine_buffer: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         from sglang.srt.layers import deep_gemm_wrapper
         from sglang.srt.layers.moe.ep_moe.kernels import (
@@ -234,7 +239,9 @@ class DeepGemmRunnerCore(MoeRunnerCore):
 
         hidden_states_device = running_state["hidden_states_device"]
 
-        enable_transpose_gemm = get_bool_env_var("SGLANG_DEEPGEMM_MOE_TRANSPOSE", "false")
+        enable_transpose_gemm = get_bool_env_var(
+            "SGLANG_DEEPGEMM_MOE_TRANSPOSE", "false"
+        )
 
         # GroupGemm-0
         if deep_gemm_wrapper.DEEPGEMM_SCALE_UE8M0:
@@ -328,9 +335,15 @@ class DeepGemmRunnerCore(MoeRunnerCore):
                 down_input_scale
             )
 
-        down_output = torch.empty(
-            (num_groups, m, n), device=hidden_states_device, dtype=torch.bfloat16
-        )
+        if combine_buffer is None:
+            down_output = torch.empty(
+                (num_groups, m, n), device=hidden_states_device, dtype=torch.bfloat16
+            )
+        else:
+            down_output = combine_buffer
+            assert down_output.shape == (num_groups, m, n)
+            assert down_output.device == hidden_states_device
+            assert down_output.dtype == torch.bfloat16
 
         down_gemm_overlap_args = running_state.get("down_gemm_overlap_args", None)
         if down_gemm_overlap_args is None:
@@ -344,16 +357,19 @@ class DeepGemmRunnerCore(MoeRunnerCore):
                 "overlap_args": down_gemm_overlap_args,
                 "max_block_n": max_block_n,
             }
-        
+
         if enable_transpose_gemm:
             # use transpose gemm
             if not gemm_overlap_args_dict:
-                deep_gemm_return_value  = deep_gemm_wrapper.m_grouped_fp8_gemm_tn_transpose_n_group_masked(
-                    (down_input, down_input_scale),
-                    (w2_weight, w2_scale),
-                    down_output,
-                    masked_m,
-                    expected_m)
+                deep_gemm_return_value = (
+                    deep_gemm_wrapper.m_grouped_fp8_gemm_tn_transpose_n_group_masked(
+                        (down_input, down_input_scale),
+                        (w2_weight, w2_scale),
+                        down_output,
+                        masked_m,
+                        expected_m,
+                    )
+                )
             else:
                 deep_gemm_return_value = deep_gemm_wrapper.m_grouped_fp8_gemm_tn_transpose_n_group_sbo_masked(
                     (down_input, down_input_scale),
