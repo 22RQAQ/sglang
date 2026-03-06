@@ -117,7 +117,7 @@ def m_grouped_fp8_gemm_tn_transpose_n_group_masked(
     with compile_utils.deep_gemm_execution_hook(
         expected_m, n, k, num_groups, kernel_type
     ):
-        return  deep_gemm.m_grouped_fp8_gemm_tn_transpose_n_group_masked(
+        deep_gemm.m_grouped_fp8_gemm_tn_transpose_n_group_masked(
                 rhs,
                 lhs,
                 out,
@@ -160,6 +160,29 @@ def gemm_nt_f8f8bf16(
         deep_gemm.fp8_gemm_nt(
             lhs,
             rhs,
+            out,
+        )
+
+#  transpose for shared experts
+def fp8_gemm_tn_transpose(
+    lhs: Tuple[torch.Tensor, torch.Tensor],
+    rhs: Tuple[torch.Tensor, torch.Tensor],
+    out: torch.Tensor,
+):
+    m, k = lhs[0].shape
+    n, _ = rhs[0].shape
+    num_groups = 1
+
+    # kernel_type待修改
+    kernel_type = compile_utils.DeepGemmKernelType.GEMM_NT_F8F8BF16
+
+    _sanity_check_input(lhs)
+    _sanity_check_input(rhs)
+
+    with compile_utils.deep_gemm_execution_hook(m, n, k, num_groups, kernel_type):
+        deep_gemm.fp8_gemm_tn_transpose(
+            rhs,
+            lhs,
             out,
         )
 

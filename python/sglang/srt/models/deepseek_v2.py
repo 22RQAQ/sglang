@@ -491,6 +491,9 @@ class DeepseekV2MLP(nn.Module):
             )
         self.act_fn = SiluAndMul()
 
+        # for confirming MLP used for shared experts 
+        self.prefix = prefix
+
     def forward(
         self,
         x,
@@ -512,6 +515,13 @@ class DeepseekV2MLP(nn.Module):
             ).view(x.shape[0], self.gate_up_proj.output_size_per_partition)
             x = (x, None, y)
 
+        # 解析prefix，确定是否是用来计算shared experts 且使用transpose gemm
+        is_transpose = self.prefix.endswith("shared_experts") and get_bool_env_var("SGLANG_DEEPGEMM_MOE_TRANSPOSE", "false")
+        if is_transpose:
+            #print("DeepseekV2MLP use transpose gemm ")
+            # 给Fp8LinearMethod 传入使用transpose的信号
+            self.gate_up_proj.quant_method.set_shared_experts_transpose_gemm(is_transpose)
+            self.down_proj.quant_method.set_shared_experts_transpose_gemm(is_transpose)
         gate_up, _ = self.gate_up_proj(x)
         x = self.act_fn(gate_up)
         x, _ = self.down_proj(

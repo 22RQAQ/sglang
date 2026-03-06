@@ -225,6 +225,9 @@ class Fp8LinearMethod(LinearMethodBase):
 
         self.w8a8_block_fp8_linear = dispatch_w8a8_block_fp8_linear()
 
+        # flag for shared experts use transpose gemm
+        self.is_transpose_gemm = False
+
     def create_weights(
         self,
         layer: torch.nn.Module,
@@ -513,6 +516,23 @@ class Fp8LinearMethod(LinearMethodBase):
                     bias=bias,
                 )
 
+            # 判断是否使用transpose gemm
+            from sglang.srt.layers.quantization.fp8_utils import (
+                    deepgemm_w8a8_block_fp8_linear_with_fallback,
+                )
+            if self.is_transpose_gemm and \
+            (self.w8a8_block_fp8_linear is deepgemm_w8a8_block_fp8_linear_with_fallback) :
+                #print("Fp8LinearMethod use transpose gemm")
+                return self.w8a8_block_fp8_linear(
+                input=x,
+                weight=layer.weight,
+                block_size=self.quant_config.weight_block_size,
+                weight_scale=layer.weight_scale_inv,
+                input_scale=None,
+                bias=bias,
+                is_transpose_gemm=self.is_transpose_gemm,
+            )
+
             return self.w8a8_block_fp8_linear(
                 input=x,
                 weight=layer.weight,
@@ -531,6 +551,10 @@ class Fp8LinearMethod(LinearMethodBase):
             cutlass_fp8_supported=self.cutlass_fp8_supported,
             use_per_token_if_dynamic=False,
         )
+
+    # 设置transpose gemm 标记
+    def set_shared_experts_transpose_gemm(self, is_transpose: bool):
+        self.is_transpose_gemm = is_transpose
 
 
 class Fp8MoEMethod(FusedMoEMethodBase):

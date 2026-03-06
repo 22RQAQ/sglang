@@ -380,6 +380,7 @@ def deepgemm_w8a8_block_fp8_linear_with_fallback(
     weight_scale: torch.Tensor,
     input_scale: Optional[torch.Tensor] = None,
     bias: Optional[torch.Tensor] = None,
+    is_transpose_gemm: bool = False,
 ) -> torch.Tensor:
     assert input_scale is None
 
@@ -412,9 +413,9 @@ def deepgemm_w8a8_block_fp8_linear_with_fallback(
         scale_tma_aligned=True,
         scale_ue8m0=deep_gemm_wrapper.DEEPGEMM_SCALE_UE8M0,
     )
-
+    
     output = w8a8_block_fp8_matmul_deepgemm(
-        q_input, weight, x_scale, weight_scale, block_size, output_dtype=output_dtype
+        q_input, weight, x_scale, weight_scale, block_size, output_dtype=output_dtype, is_transpose_gemm=is_transpose_gemm
     )
     if bias is not None:
         output += bias

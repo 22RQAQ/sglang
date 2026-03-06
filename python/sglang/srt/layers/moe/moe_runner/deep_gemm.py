@@ -234,6 +234,7 @@ class DeepGemmRunnerCore(MoeRunnerCore):
 
         hidden_states_device = running_state["hidden_states_device"]
 
+        # set a flag to enable transpose gemm
         enable_transpose_gemm = get_bool_env_var("SGLANG_DEEPGEMM_MOE_TRANSPOSE", "false")
 
         # GroupGemm-0

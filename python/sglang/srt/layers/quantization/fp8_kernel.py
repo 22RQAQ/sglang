@@ -1075,16 +1075,22 @@ def w8a8_block_fp8_matmul_deepgemm(
     Bs: torch.Tensor,
     block_size: List[int],
     output_dtype: torch.dtype,
+    is_transpose_gemm: bool = False,
+
 ) -> torch.Tensor:
     M, N, K, C = prepare_block_fp8_matmul_inputs(A, B, As, Bs, block_size, output_dtype)
 
     # Deepgemm only supports output tensor type as bfloat16
     assert C.dtype == torch.bfloat16 and deep_gemm_wrapper.ENABLE_JIT_DEEPGEMM
 
-    if supports_custom_op():
-        torch.ops.sglang.deep_gemm_fp8_fp8_bf16_nt(A, As, B, Bs, C)
+    if is_transpose_gemm:
+            #print("w8a8_block_fp8_matmul_deepgemm use transpose")
+            deep_gemm_wrapper.fp8_gemm_tn_transpose((A, As), (B, Bs), C)
     else:
-        deep_gemm_wrapper.gemm_nt_f8f8bf16((A, As), (B, Bs), C)
+        if supports_custom_op():
+            torch.ops.sglang.deep_gemm_fp8_fp8_bf16_nt(A, As, B, Bs, C)
+        else:
+            deep_gemm_wrapper.gemm_nt_f8f8bf16((A, As), (B, Bs), C)
 
     return C
 
